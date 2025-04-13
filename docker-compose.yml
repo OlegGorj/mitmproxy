@@ -1,0 +1,50 @@
+version: '3'
+services:
+  tfc-agent:
+    # image: hashicorp/tfc-agent:latest
+    # privileged: true  # Add this to allow certificate updates
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - TFC_AGENT_TOKEN=${TFC_AGENT_TOKEN}
+      - TFC_AGENT_NAME=myagent-1
+      - TF_ADDRESS=https://app.terraform.io
+      - TF_AGENT_LOG_LEVEL=DEBUG
+      - TF_ORGANIZATION=${TF_ORGANIZATION}  # Required: Organization name
+      - TF_AGENT_POOL_ID=${TF_AGENT_POOL_ID}  # Optional: Agent pool ID
+      - HTTPS_PROXY=http://host.docker.internal:8080
+      - HTTP_PROXY=http://host.docker.internal:8080
+      - http_proxy=http://host.docker.internal:8080
+      - https_proxy=http://host.docker.internal:8080
+      - SSL_CERT_FILE=/etc/ssl/certs/mitmproxy-ca.crt
+      - NODE_EXTRA_CA_CERTS=/etc/ssl/certs/mitmproxy-ca.crt
+      - REQUESTS_CA_BUNDLE=/etc/ssl/certs/mitmproxy-ca.crt
+      - NODE_TLS_REJECT_UNAUTHORIZED=0
+      - NO_PROXY=169.254.169.254,169.254.170.2,localhost,127.0.0.1
+    volumes:
+      - ./mitmproxy-ca.crt:/etc/ssl/certs/mitmproxy-ca.crt:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - agent-network
+    depends_on:
+      - mitmproxy
+
+  mitmproxy:
+    image: mitmproxy/mitmproxy:latest
+    command: mitmweb --web-host 0.0.0.0 --web-port 8081 --mode regular --listen-host 0.0.0.0 --listen-port 8080
+    ports:
+      - "8080:8080"  # Proxy port
+      - "8081:8081"  # Web interface
+    volumes:
+      - ./mitmproxy-ca.crt:/home/mitmproxy/.mitmproxy/mitmproxy-ca.crt:ro
+    networks:
+      - agent-network
+
+networks:
+  agent-network:
+    driver: bridge
+
+volumes:
+  ssl-certs:
